@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>
+		Hra: Hledání min
+	</title>
+	<style type="text/css" media="screen">
+		content{
+			margin: 0 auto;
+			display: block;
+			width: 500px;
+		}
+		canvas{
+			border: 1px solid black;
+		}
+	</style>
+</head>
+<body>
+	<content>
+		<h1>
+			Hra: Hledání min
+		</h1>
+		<canvas id="myCanvas" width="240" height="280">
+			
+		</canvas>
+	</content>
+	<script type="text/javascript">
+		
+		var canvas = document.getElementById("myCanvas");
+		var ctx = canvas.getContext("2d");
+
+		var canvasLeft = canvas.offsetLeft;
+		var canvasTop = canvas.offsetTop;
+
+		var numberMines = 10;
+		var gameBorderLenghtX = 8;
+		var gameBorderLenghtY = 8;
+
+		/*
+		legend
+		. - empty
+		/ - marked
+		// - marked mine
+		* - mine
+		# - exploded mine
+		number - near mines
+		*/
+		var map = [];
+
+		var gameOver;
+		var gameWin;
+
+		var colors = ["#ff9900","#3399ff","#cc33ff","#ff9900","#0099ff","#003300","#00ff00","#660066"];
+
+		var markedMines;
+
+		var time;
+		var timeText;
+
+		setGame();
+		gameLoop();
+
+		canvas.addEventListener('mousedown', function(event){
+			var x = event.pageX - canvasLeft;
+			var y = event.pageY - canvasTop;
+
+			if(y > 40){
+				if(gameOver || gameWin)
+					return;
+
+				if(time == null)
+					time = new Date();
+
+				y -= 40;
+				var cellX = Math.floor(x / 30);
+				var cellY = Math.floor(y / 30);
+
+				if(0 > cellX || cellX > 8 || 0 > cellY || cellY > 8)
+					return;
+
+				if(event.button === 0){
+					chooseCell(cellX, cellY);
+				}
+				if(event.button === 2){
+					markCell(cellX, cellY);
+				}
+				checkWin();
+			}else{
+				if(x > 105 && x < 135)
+					resetGame();
+			}
+		}, false);
+
+		canvas.addEventListener('contextmenu', function(event){
+			if(event.button === 2){
+				event.preventDefault();
+			}
+		});
+
+		function checkWin(){
+			var count = numberMines;
+
+			for (var x = 0; x < gameBorderLenghtX; x++) {
+				for (var y = 0; y < gameBorderLenghtY; y++) {
+					if(map[x][y] == "\\")
+						count--;
+					if(map[x][y] == "." || map[x][y] == "/")
+						return;
+				}
+			}
+
+			if(count == 0){
+				gameWin = true;
+				alert("Vyhrál jsi!");
+			}
+		}
+
+		function updateTime(){
+			if(time != null && gameOver == false && gameWin == false){
+				timeText = (Math.floor((Date.now() - time.getTime()) / 1000)).toString();
+			}
+		}
+
+		function markCell(x, y){
+			switch(map[x][y]){
+				case ".":
+					markedMines++;
+					map[x][y] = "/";
+					break;
+				case "/":
+					markedMines--;
+					map[x][y] = ".";
+					break;
+				case "\\":
+					markedMines--;
+					map[x][y] = "*";
+					break;
+				case "*":
+					markedMines++;
+					map[x][y] = "\\";
+					break;
+			}
+		}
+
+		function resetGame(){
+			setGame();
+		}
+
+		function chooseCell(x, y){
+			if(isMine(x, y)){
+				explodeAllMines();
+			}else{
+				if(!isMarked(x,y))
+					generateNumber(x, y);
+			}
+		}
+
+		function callNeighbors(x, y){
+			var neighbors = getNeighbors(x, y);
+			for (var i = 0; i < neighbors.length; i++) {
+				if(notVisited(neighbors[i][0], neighbors[i][1])){
+					generateNumber(neighbors[i][0], neighbors[i][1]);
+				}
+			}
+		}
+
+		function generateNumber(x, y){
+			map[x][y] = countMines(x, y);
+			if(map[x][y] == "0")
+				callNeighbors(x, y);
+		}
+
+		function explodeAllMines(){
+			gameOver = true;
+
+
+			for (var y = 0; y < gameBorderLenghtY; y++) {
+				for (var x = 0; x < gameBorderLenghtX; x++) {
+					if(map[y][x] == "*")
+						map[y][x] = "#";
+				}
+			}
+		}
+
+		function notVisited(x, y){
+			return map[x][y] === ".";
+		}
+
+		function isMarked(x, y){
+			return map[x][y] === "/" || map[x][y] === "\\";
+		}
+
+		function isMine(x, y){
+			return map[x][y] === "*";
+		}
+
+		function countMines(x, y){
+			var count = 0;
+			var neighbors = getNeighbors(x, y);
+
+			for (var i = 0; i < neighbors.length; i++) {
+				if(map[neighbors[i][0]][neighbors[i][1]] == "*" || map[neighbors[i][0]][neighbors[i][1]] == "\\"){
+					count++;
+				}
+			}
+
+			return count;
+		}
+
+		function getNeighbors(x, y){
+			var array = [];
+
+			for (var x2 = (x - 1); x2 <= (x + 1); x2++) {
+				for (var y2 = (y - 1); y2 <= (y + 1); y2++) {
+					if(0 > x2 || x2 > (gameBorderLenghtX - 1) || 0 > y2 || y2 > (gameBorderLenghtY - 1)){
+						continue;
+					}
+					if(x2 == x && y2 == y)
+						continue;
+
+					array.push([x2, y2]);
+				}
+			}
+
+			return array;
+		}
+
+		function drawCell(x, y){
+			ctx.fillStyle = "#999999";
+			ctx.fillRect(x * 30 + 1, y * 30 + 40 + 1, 28, 28);
+		}
+
+		function drawExploded(x, y){
+			ctx.fillStyle = "#000000";
+			ctx.font = "20px Segoe UI Symbol";
+			ctx.fillText("\u26ED", x * 30 + 7, y * 30 + 63);
+		}
+
+		function drawNumber(x, y){
+			if(map[x][y] > 0){
+				ctx.font = "25px Arial";
+				ctx.fillStyle = colors[map[x][y] - 1];
+				ctx.fillText(map[x][y], x * 30 + 7, y * 30 + 65);				
+			}
+		}
+
+		function drawMared(x, y){
+			ctx.fillStyle = "#885555";
+			ctx.font = "20px Segoe UI Symbol";
+			ctx.fillText("\u26F3", x * 30 + 7, y * 30 + 63);
+		}
+
+		function drawMarkedMines(){
+			ctx.fillStyle = "#000000";
+			ctx.font = "25px Arial";
+			ctx.fillText(numberMines - markedMines, 10, 30);			
+		}
+
+		function drawTime(){
+			ctx.fillStyle = "#000000";
+			ctx.font = "25px Arial";
+			ctx.fillText(timeText, 190 + ((3 - timeText.length) * 10), 30);			
+		}
+
+		function drawFace(){
+			ctx.fillStyle = "#000000";
+			ctx.font = "30px Segoe UI Symbol";
+			var text = "\u263A";
+			if(gameOver)
+				text = "\u2639";
+			if(gameWin)
+				text = "\u26C4";
+			ctx.fillText(text, 105, 30);			
+		}
+
+		function drawMap(){
+			for (var x = 0; x < gameBorderLenghtX; x++) {
+				for (var y = 0; y < gameBorderLenghtY; y++) {
+					switch(map[x][y]){
+						case ".":
+						case "*":
+							drawCell(x,y);
+							break;
+						case "#":
+							drawExploded(x, y);
+							break;
+						case "/":
+						case "\\":
+							drawMared(x, y);
+							break;
+						default:
+							drawNumber(x, y);
+							break;
+					}
+				}
+			}
+		}
+
+		function generateMines(){
+			var xPos, yPos, posOk;
+			for (var i = 0; i < numberMines; i++) {
+				do{
+					posOk = true;
+					xPos = Math.floor(Math.random() * 8);
+					yPos = Math.floor(Math.random() * 8);
+
+					if(map[xPos][yPos] != "."){
+						posOk = false;
+					}
+				}while(!posOk);
+				map[xPos][yPos] = "*";
+			}
+		}
+
+		function drawGameBoard(){
+			ctx.fillStyle = "#ffffff";
+			ctx.clearRect(0,0,240,280);
+
+			ctx.fillStyle = "#cccccc";
+			for (var x = 0; x < gameBorderLenghtX; x++) {
+				for (var y = 0; y < gameBorderLenghtY; y++) {
+					ctx.fillRect(x * 30 + 1, y * 30 + 40 + 1, 28, 28);
+				}
+			}
+		}
+
+		function createMap(){
+			for (var y = 0; y < gameBorderLenghtY; y++) {
+				map[y] = [];
+				for (var x = 0; x < gameBorderLenghtX; x++) {
+					map[y][x] = ".";
+				}
+			}
+		}
+
+		function setGame() {
+			createMap();
+			generateMines();
+			gameOver = false;
+			gameWin = false;
+			markedMines = 0;
+			time = null;
+			timeText = "0";
+		}
+
+		function gameLoop(){
+			console.clear();
+
+			updateTime();
+
+			drawGameBoard();
+			drawMap();
+			drawMarkedMines();
+			drawTime();
+			drawFace();
+
+			requestAnimationFrame(gameLoop);
+		}
+
+		requestAnimationFrame(gameLoop);
+
+	</script>
+</body>
+</html>
